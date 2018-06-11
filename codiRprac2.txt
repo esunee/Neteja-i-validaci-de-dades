@@ -1,0 +1,89 @@
+setwd("C:/Users/evasu/Desktop")
+dades <- read.csv("guns.csv", header = TRUE, sep = ",")
+str(dades)
+attach (dades)
+dades<- dades[,-(1)]
+dades<- dades[,-(8)]
+sapply(dades, function(x)(sum(is.na(x))))
+dades <- dades[which(intent!="NA"),]
+library(VIM)
+dades$age <- kNN(dades)$age
+dades$place <- kNN(dades)$place
+dades1 <- subset(dades, age<16)
+sapply(dades1, function(x)(sum(is.na(x))))
+table(dades1$education)
+dades$education[dades$age<16]<- 1
+sapply(dades, function(x)(sum(is.na(x))))
+dades$education <- kNN(dades)$education
+sapply(dades, function(x)(sum(is.na(x))))
+boxplot.stats(age)$out
+table(dades$intent)
+dades <- within(dades, {
+  intent <- Recode(intent, '"Accidental"=1; "Homicide"=2; "Suicide"=3; "Undetermined"=4', as.factor.result=TRUE)
+})
+dades$intent <- as.numeric(dades$intent)
+table(dades$intent)
+table(dades$race)
+dades <- within(dades, {
+  race <- Recode(race, '"Asian/Pacific Islander"=1; "Black"=2; "Hispanic"=3; "Native American/Native Alaskan"=4; 
+  "White"=5', as.factor.result=TRUE)
+})
+dades$race <- as.numeric(dades$race)
+table(dades$race)
+table(sex)
+dades <- within(dades, {
+  dades$sex <- Recode(dades$sex, '1=0; 2=1', as.factor.result=TRUE)
+})
+dades$sex <- as.numeric(dades$sex)
+table(dades$sex)
+str(dades)
+
+library(nortest)
+ad.test(dades$intent)$p.value
+ad.test(dades$police)$p.value
+ad.test(dades$sex)$p.value
+ad.test(dades$age)$p.value
+ad.test(dades$race)$p.value
+ad.test(dades$education)$p.value
+with(dades, discretePlot(intent, scale="frequency"))
+with(dades, discretePlot(education, scale="frequency"))
+bartlett.test(race ~ sex, data = dades)
+corr_dades <-dadesF[,c("intent", "police", "sex", 
+               "age", "race", "education")]
+
+mcorr_dades <- cor(corr_dades)
+library(corrplot)
+corrplot(mcorr_dades,method="number")
+
+dades.F.homicide.age <- dades[dades$sex == 1&dades$intent==2,]$age
+dades.M.homicide.age <- dades[dades$sex == 2&dades$intent==2,]$age
+t.test(dades.M.homicide.age, dades.F.homicide.age, alternative = "less")
+
+my.lm<-lm(intent~age+sex+police+education+race+place, data=dades) 
+summary(my.lm)
+
+dades <- within(dades, {
+  sui <- Recode(intent, '1=0;2=0;4=0')
+})
+dades <- within(dades, {
+  sui <- Recode(sui, '3=1;')
+})
+table(dades$sui)
+train_glm <- glm(sui ~ police + sex + age + education + race,
+                        data = dades,
+                        family=binomial())
+
+summary(train_glm)
+train_features <- dades[ , c("police", "sex", "age", "education", "race")]
+predicted <- predict(train_glm, newdata=train_features)
+
+predicted_bin <- ifelse(predicted < 0.5, 0, 1)
+matrizconf<-table(predicted_bin, dades$sui)
+matrizconf
+sum(diag(matrizconf))/sum(matrizconf)
+
+newdata=data.frame(police=0, sex=0, age=32, education=3, race=2) 
+pre=predict(train_glm, newdata)
+predicted_bin <- ifelse(pre < 0.5, "NO", "SI")
+predicted_bin
+write.csv(dades, file = "guns_out.csv")
